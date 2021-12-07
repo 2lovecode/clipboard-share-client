@@ -10,3 +10,5 @@ edition = "2018"
 iced = { features = ["canvas", "tokio", "debug"] }
 chrono = "0.4"
 clipboard = "0.5.0"
+reqwest = { features = ["json"] }
+tokio = { features = ["full"] }

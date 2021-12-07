@@ -1,10 +1,27 @@
 use iced::{executor, time, Application, Command, Element, Settings, Clipboard, Container, Subscription, Text};
 use clipboard::ClipboardProvider;
 use clipboard::ClipboardContext;
+use std::collections::HashMap;
 
 pub fn main() -> iced::Result {
+    read_data_from_remote();
+
     Hello::run(Settings::default())
 }
+
+async fn get_data_from_remote() -> Result<HashMap<String, String>, reqwest::Error>{
+    Ok(reqwest::get("https://httpbin.org/ip").await?.json::<HashMap<String, String>>().await?)
+}
+
+#[tokio::main]
+async fn read_data_from_remote() {
+    if let Ok(resp) = get_data_from_remote().await {
+        println!("{:#?}", resp);
+    }
+}
+// fn send_data_to_remote() {
+
+// }
 
 #[derive(Default)]
 struct Hello {

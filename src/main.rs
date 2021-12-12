@@ -63,7 +63,7 @@ impl Application for Hello {
     }
 
     fn view(&mut self) -> Element<Self::Message> {
-
+// String::from_utf8_lossy(v: &[u8])
         let input = Text::new(self.t_value.to_string());
         Container::new(input).into()
     }

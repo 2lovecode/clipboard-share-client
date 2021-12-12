@@ -30,7 +30,7 @@ struct Hello {
 
 #[derive(Debug, Clone)]
 enum Message {
-    Tick(chrono::DateTime<chrono::Local>),
+    Tick(),
 }
 
 
@@ -44,16 +44,17 @@ impl Application for Hello {
     }
 
     fn title(&self) -> String {
-        String::from("A cool application 123")
+        String::from("Clipboard Share Client")
     }
 
     fn update(&mut self, _messsage: Self::Message, _clipboard: &mut Clipboard) -> Command<Self::Message> {
         match _messsage {
-            Message::Tick(local_time) => {
-                if local_time.to_string() != self.t_value {
-                    let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
-                    let ss = ctx.get_contents().unwrap();
-                    self.t_value = ss.to_string();
+            Message::Tick() => {
+                let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
+                let ss = ctx.get_contents().unwrap();
+                if self.t_value != ss {
+                    // println!("{}", local_time.to_string());
+                    self.t_value = ss;
                 }
                 
             }
@@ -62,12 +63,13 @@ impl Application for Hello {
     }
 
     fn view(&mut self) -> Element<Self::Message> {
+
         let input = Text::new(self.t_value.to_string());
         Container::new(input).into()
     }
 
     fn subscription(&self) -> Subscription<Message> {
         time::every(std::time::Duration::from_millis(2000))
-            .map(|_| Message::Tick(chrono::Local::now()))
+            .map(|_| Message::Tick())
     }
 }

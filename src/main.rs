@@ -2,23 +2,29 @@ use iced::{executor, time, Application, Command, Element, Settings, Clipboard, C
 use clipboard::ClipboardProvider;
 use clipboard::ClipboardContext;
 use std::collections::HashMap;
+use std::io::prelude::*;
+use std::thread;
+use std::net::{TcpListener, TcpStream};
 
 pub fn main() -> iced::Result {
-    read_data_from_remote();
-
+    thread::spawn(|| start_server);
     Hello::run(Settings::default())
-}
 
-async fn get_data_from_remote() -> Result<HashMap<String, String>, reqwest::Error>{
-    Ok(reqwest::get("https://httpbin.org/ip").await?.json::<HashMap<String, String>>().await?)
 }
 
 #[tokio::main]
-async fn read_data_from_remote() {
-    if let Ok(resp) = get_data_from_remote().await {
-        println!("{:#?}", resp);
+async fn start_server() {
+    let listener = TcpListener::bind("127.0.0.1:80").unwrap();
+
+    for stream in listener.incoming() {
+        match stream {
+            Ok(stream) => {
+            }
+            Err(e) => { /* connection failed */ }
+        }
     }
 }
+
 // fn send_data_to_remote() {
 
 // }
@@ -30,7 +36,7 @@ struct Hello {
 
 #[derive(Debug, Clone)]
 enum Message {
-    Tick(),
+    Receive(),
 }
 
 
@@ -49,8 +55,21 @@ impl Application for Hello {
 
     fn update(&mut self, _messsage: Self::Message, _clipboard: &mut Clipboard) -> Command<Self::Message> {
         match _messsage {
-            Message::Tick() => {
+            Message::Receive() => {
+
+                // 从当前设备剪切板读取数据
+                // 从远端读取数据
+                // 将当前设备数据推送到远端
+                // 合并数据，记录到当前设备数据库
+
+                // let mut stream = TcpStream::connect("127.0.0.1:34254")?;
+                //
+                // stream.write(&[1])?;
+                // stream.read(&mut [0; 128])?;
+
                 let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
+
+
                 let ss = ctx.get_contents().unwrap();
                 if self.t_value != ss {
                     // println!("{}", local_time.to_string());
@@ -70,6 +89,6 @@ impl Application for Hello {
 
     fn subscription(&self) -> Subscription<Message> {
         time::every(std::time::Duration::from_millis(2000))
-            .map(|_| Message::Tick())
+            .map(|_| Message::Receive())
     }
 }

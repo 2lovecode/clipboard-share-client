@@ -1,94 +1,172 @@
-use iced::{executor, time, Application, Command, Element, Settings, Clipboard, Container, Subscription, Text};
-use clipboard::ClipboardProvider;
-use clipboard::ClipboardContext;
-use std::collections::HashMap;
-use std::io::prelude::*;
-use std::thread;
-use std::net::{TcpListener, TcpStream};
+mod echo;
+
+use iced::alignment::{self, Alignment};
+use iced::executor;
+use iced::widget::{
+    button, column, container, row, scrollable, text, text_input, Column,
+};
+use iced::{
+    Application, Color, Command, Element, Length, Settings, Subscription, Theme,
+};
+use once_cell::sync::Lazy;
+use cli_clipboard::{ClipboardContext, ClipboardProvider};
 
 pub fn main() -> iced::Result {
-    thread::spawn(|| start_server);
-    Hello::run(Settings::default())
-
+    let mut ctx = ClipboardContext::new().unwrap();
+    println!("aaa: {}", ctx.get_contents().unwrap());
+    ClipboardShare::run(Settings::default())
 }
-
-#[tokio::main]
-async fn start_server() {
-    let listener = TcpListener::bind("127.0.0.1:80").unwrap();
-
-    for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
-            }
-            Err(e) => { /* connection failed */ }
-        }
-    }
-}
-
-// fn send_data_to_remote() {
-
-// }
 
 #[derive(Default)]
-struct Hello {
-    t_value : String,
+struct ClipboardShare {
+    messages: Vec<echo::Message>,
+    new_message: String,
+    state: State,
 }
 
 #[derive(Debug, Clone)]
 enum Message {
-    Receive(),
+    NewMessageChanged(String),
+    Send(echo::Message),
+    Echo(echo::Event),
+    Server,
 }
 
-
-impl Application for Hello {
-    type Executor = executor::Default;
+impl Application for ClipboardShare {
     type Message = Message;
+    type Theme = Theme;
     type Flags = ();
+    type Executor = executor::Default;
 
-    fn new(_flags: ()) -> (Hello, Command<Self::Message>) {
-        (Hello{t_value: String::from(""), ..Self::default()}, Command::none())
+    fn new(_flags: Self::Flags) -> (Self, Command<Message>) {
+        (
+            Self::default(),
+            Command::perform(echo::server::run(), |_| Message::Server),
+        )
     }
 
     fn title(&self) -> String {
-        String::from("Clipboard Share Client")
+        String::from("ClipboardShare")
     }
 
-    fn update(&mut self, _messsage: Self::Message, _clipboard: &mut Clipboard) -> Command<Self::Message> {
-        match _messsage {
-            Message::Receive() => {
+    fn update(&mut self, message: Message) -> Command<Message> {
+        match message {
+            Message::NewMessageChanged(new_message) => {
+                self.new_message = new_message;
 
-                // 从当前设备剪切板读取数据
-                // 从远端读取数据
-                // 将当前设备数据推送到远端
-                // 合并数据，记录到当前设备数据库
-
-                // let mut stream = TcpStream::connect("127.0.0.1:34254")?;
-                //
-                // stream.write(&[1])?;
-                // stream.read(&mut [0; 128])?;
-
-                let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
-
-
-                let ss = ctx.get_contents().unwrap();
-                if self.t_value != ss {
-                    // println!("{}", local_time.to_string());
-                    self.t_value = ss;
-                }
-                
+                Command::none()
             }
-        }
-        Command::none()
-    }
+            Message::Send(message) => match &mut self.state {
+                State::Connected(connection) => {
+                    self.new_message.clear();
 
-    fn view(&mut self) -> Element<Self::Message> {
-// String::from_utf8_lossy(v: &[u8])
-        let input = Text::new(self.t_value.to_string());
-        Container::new(input).into()
+                    connection.send(message);
+
+                    Command::none()
+                }
+                State::Disconnected => Command::none(),
+            },
+            Message::Echo(event) => match event {
+                echo::Event::Connected(connection) => {
+                    self.state = State::Connected(connection);
+
+                    self.messages.push(echo::Message::connected());
+
+                    Command::none()
+                }
+                echo::Event::Disconnected => {
+                    self.state = State::Disconnected;
+
+                    self.messages.push(echo::Message::disconnected());
+
+                    Command::none()
+                }
+                echo::Event::MessageReceived(message) => {
+                    self.messages.push(message);
+
+                    scrollable::snap_to(MESSAGE_LOG.clone(), 1.0)
+                }
+            },
+            Message::Server => Command::none(),
+        }
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        time::every(std::time::Duration::from_millis(2000))
-            .map(|_| Message::Receive())
+        echo::connect().map(Message::Echo)
+    }
+
+    fn view(&self) -> Element<Message> {
+        let message_log: Element<_> = if self.messages.is_empty() {
+            container(
+                text("Your messages will appear here...")
+                    .style(Color::from_rgb8(0x88, 0x88, 0x88)),
+            )
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .center_x()
+            .center_y()
+            .into()
+        } else {
+            scrollable(
+                Column::with_children(
+                    self.messages
+                        .iter()
+                        .cloned()
+                        .map(text)
+                        .map(Element::from)
+                        .collect(),
+                )
+                .width(Length::Fill)
+                .spacing(10),
+            )
+            .id(MESSAGE_LOG.clone())
+            .height(Length::Fill)
+            .into()
+        };
+
+        let new_message_input = {
+            let mut input = text_input(
+                "Type a message...",
+                &self.new_message,
+                Message::NewMessageChanged,
+            )
+            .padding(10);
+
+            let mut button = button(
+                text("Send")
+                    .height(Length::Fill)
+                    .vertical_alignment(alignment::Vertical::Center),
+            )
+            .padding([0, 20]);
+
+            if matches!(self.state, State::Connected(_)) {
+                if let Some(message) = echo::Message::new(&self.new_message) {
+                    input = input.on_submit(Message::Send(message.clone()));
+                    button = button.on_press(Message::Send(message));
+                }
+            }
+
+            row![input, button].spacing(10).align_items(Alignment::Fill)
+        };
+
+        column![message_log, new_message_input]
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .padding(20)
+            .spacing(10)
+            .into()
     }
 }
+
+enum State {
+    Disconnected,
+    Connected(echo::Connection),
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self::Disconnected
+    }
+}
+
+static MESSAGE_LOG: Lazy<scrollable::Id> = Lazy::new(scrollable::Id::unique);

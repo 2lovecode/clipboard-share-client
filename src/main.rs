@@ -1,35 +1,28 @@
-mod echo;
-
-use iced::alignment::{self, Alignment};
 use iced::executor;
 use iced::widget::{
-    button, column, container, row, scrollable, text, text_input, Column,
+    column, container, scrollable, text, Column,
 };
 use iced::{
-    Application, Color, Command, Element, Length, Settings, Subscription, Theme,
+    self, Application, Color, Command, Element, Length, Subscription, Theme,
 };
 use once_cell::sync::Lazy;
+use once_cell::sync::OnceCell;
 use cli_clipboard::{ClipboardContext, ClipboardProvider};
+use iced_graphics;
 
 pub fn main() -> iced::Result {
-    let mut ctx = ClipboardContext::new().unwrap();
-    println!("aaa: {}", ctx.get_contents().unwrap());
-    ClipboardShare::run(Settings::default())
+    ClipboardShare::run(settings())
 }
 
 #[derive(Default)]
 struct ClipboardShare {
-    messages: Vec<echo::Message>,
-    new_message: String,
-    state: State,
+    messages: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
 enum Message {
-    NewMessageChanged(String),
-    Send(echo::Message),
-    Echo(echo::Event),
-    Server,
+    Send(String),
+    None
 }
 
 impl Application for ClipboardShare {
@@ -41,64 +34,43 @@ impl Application for ClipboardShare {
     fn new(_flags: Self::Flags) -> (Self, Command<Message>) {
         (
             Self::default(),
-            Command::perform(echo::server::run(), |_| Message::Server),
+            Command::none(),
         )
     }
 
     fn title(&self) -> String {
-        String::from("ClipboardShare")
+        String::from("剪切板")
     }
 
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
-            Message::NewMessageChanged(new_message) => {
-                self.new_message = new_message;
-
+            Message::Send(msg) => {
+                self.messages.push(msg);
                 Command::none()
             }
-            Message::Send(message) => match &mut self.state {
-                State::Connected(connection) => {
-                    self.new_message.clear();
-
-                    connection.send(message);
-
-                    Command::none()
-                }
-                State::Disconnected => Command::none(),
-            },
-            Message::Echo(event) => match event {
-                echo::Event::Connected(connection) => {
-                    self.state = State::Connected(connection);
-
-                    self.messages.push(echo::Message::connected());
-
-                    Command::none()
-                }
-                echo::Event::Disconnected => {
-                    self.state = State::Disconnected;
-
-                    self.messages.push(echo::Message::disconnected());
-
-                    Command::none()
-                }
-                echo::Event::MessageReceived(message) => {
-                    self.messages.push(message);
-
-                    scrollable::snap_to(MESSAGE_LOG.clone(), 1.0)
-                }
-            },
-            Message::Server => Command::none(),
+            Message::None => Command::none()
         }
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        echo::connect().map(Message::Echo)
+        iced::time::every(std::time::Duration::from_millis(500)).map(|_| {
+            let mut clipboard_ctx = ClipboardContext::new().unwrap();
+            match clipboard_ctx.get_contents() {
+                Ok(content) => {
+                    _ = clipboard_ctx.clear();
+                    Message::Send(content)
+                }
+                Err(_) => {
+                    Message::None
+                }
+            }
+        })
     }
 
     fn view(&self) -> Element<Message> {
         let message_log: Element<_> = if self.messages.is_empty() {
             container(
-                text("Your messages will appear here...")
+                text("剪切板内容")
                     .style(Color::from_rgb8(0x88, 0x88, 0x88)),
             )
             .width(Length::Fill)
@@ -124,32 +96,7 @@ impl Application for ClipboardShare {
             .into()
         };
 
-        let new_message_input = {
-            let mut input = text_input(
-                "Type a message...",
-                &self.new_message,
-                Message::NewMessageChanged,
-            )
-            .padding(10);
-
-            let mut button = button(
-                text("Send")
-                    .height(Length::Fill)
-                    .vertical_alignment(alignment::Vertical::Center),
-            )
-            .padding([0, 20]);
-
-            if matches!(self.state, State::Connected(_)) {
-                if let Some(message) = echo::Message::new(&self.new_message) {
-                    input = input.on_submit(Message::Send(message.clone()));
-                    button = button.on_press(Message::Send(message));
-                }
-            }
-
-            row![input, button].spacing(10).align_items(Alignment::Fill)
-        };
-
-        column![message_log, new_message_input]
+        column![message_log]
             .width(Length::Fill)
             .height(Length::Fill)
             .padding(20)
@@ -158,15 +105,40 @@ impl Application for ClipboardShare {
     }
 }
 
-enum State {
-    Disconnected,
-    Connected(echo::Connection),
-}
-
-impl Default for State {
-    fn default() -> Self {
-        Self::Disconnected
-    }
-}
-
 static MESSAGE_LOG: Lazy<scrollable::Id> = Lazy::new(scrollable::Id::unique);
+
+
+// 在 lib.rs 内
+pub fn settings() -> iced::Settings<()> {
+    iced::Settings {
+        default_font:font(),
+        ..Default::default()
+    }
+ }
+ // OnceCell可以帮助我们安全的定义一个生存期为 static的全局变量
+ static FONT: OnceCell<Option<Vec<u8>>> = OnceCell::new();
+ 
+ fn font() -> Option<&'static [u8]> {
+    FONT.get_or_init(|| {
+        // 需要添加iced_graphics这个crate
+        use iced_graphics::font::Family;
+        let source = iced_graphics::font::Source::new();
+        source
+            .load(&[
+                Family::Title("PingFang SC".to_owned()),
+                Family::Title("Hiragino Sans GB".to_owned()),
+                Family::Title("Heiti SC".to_owned()),
+                Family::Title("Microsoft YaHei".to_owned()),
+                Family::Title("WenQuanYi Micro Hei".to_owned()),
+                Family::Title("Microsoft YaHei".to_owned()),
+                // TODO:iced 目前没有字体fallback，所以我们只能尽可能选择中英文支持的字体
+                Family::Title("Helvetica".to_owned()),
+                Family::Title("Tahoma".to_owned()),
+                Family::Title("Arial".to_owned()),
+                Family::SansSerif,
+            ])
+            .ok()
+    })
+    .as_ref()
+    .map(|f| f.as_slice())
+ }

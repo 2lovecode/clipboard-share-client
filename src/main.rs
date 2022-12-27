@@ -9,8 +9,31 @@ use once_cell::sync::Lazy;
 use once_cell::sync::OnceCell;
 use cli_clipboard::{ClipboardContext, ClipboardProvider};
 use iced_graphics;
+use tauri_hotkey;
+use enigo::*;
 
 pub fn main() -> iced::Result {
+    let mut hotkey = tauri_hotkey::HotkeyManager::new();
+    let ctrl_c = tauri_hotkey::Hotkey {
+        keys: vec![tauri_hotkey::Key::C],
+        modifiers: vec![tauri_hotkey::Modifier::CTRL],
+    };
+    let ctrl_v = tauri_hotkey::Hotkey {
+        keys: vec![tauri_hotkey::Key::V],
+        modifiers: vec![tauri_hotkey::Modifier::CTRL],
+    };
+    
+    hotkey.register(ctrl_c, || {
+        
+            println!("You pressed Ctrl+C",);
+        })
+        .unwrap();
+    hotkey.register(ctrl_v, || {
+            println!("You pressed Ctrl+V",);
+        })
+        .unwrap();
+    let mut en = Enigo::new();
+    en.key_sequence("hello world");
     ClipboardShare::run(settings())
 }
 

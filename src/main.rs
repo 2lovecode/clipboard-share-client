@@ -9,13 +9,8 @@ use once_cell::sync::Lazy;
 use once_cell::sync::OnceCell;
 use cli_clipboard::{ClipboardContext, ClipboardProvider};
 use iced_graphics;
-use device_query::{DeviceState, DeviceEvents};
 
 pub fn main() -> iced::Result {
-    let device_state = DeviceState::new();
-    let _guard = device_state.on_key_down(|key| {
-        println!("Keyboard key down: {:#?}", key);
-     });
     ClipboardShare::run(settings())
 }
 

@@ -9,14 +9,13 @@ use once_cell::sync::Lazy;
 use once_cell::sync::OnceCell;
 use cli_clipboard::{ClipboardContext, ClipboardProvider};
 use iced_graphics;
-use device_query::{DeviceQuery, DeviceState, MouseState, Keycode};
+use device_query::{DeviceState, DeviceEvents};
 
 pub fn main() -> iced::Result {
     let device_state = DeviceState::new();
-    let mouse: MouseState = device_state.get_mouse();
-    println!("Current Mouse Coordinates: {:?}", mouse.coords);
-    let keys: Vec<Keycode> = device_state.get_keys();
-    println!("Is A pressed? {}", keys.contains(Keycode::A));
+    let _guard = device_state.on_key_down(|key| {
+        println!("Keyboard key down: {:#?}", key);
+     });
     ClipboardShare::run(settings())
 }
 
@@ -137,7 +136,6 @@ pub fn settings() -> iced::Settings<()> {
                 Family::Title("Microsoft YaHei".to_owned()),
                 Family::Title("WenQuanYi Micro Hei".to_owned()),
                 Family::Title("Microsoft YaHei".to_owned()),
-                // TODO:iced 目前没有字体fallback，所以我们只能尽可能选择中英文支持的字体
                 Family::Title("Helvetica".to_owned()),
                 Family::Title("Tahoma".to_owned()),
                 Family::Title("Arial".to_owned()),

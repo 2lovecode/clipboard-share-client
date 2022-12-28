@@ -11,25 +11,36 @@ use cli_clipboard::{ClipboardContext, ClipboardProvider};
 use iced_graphics;
 use tauri_hotkey;
 use enigo::*;
+use std::sync::{Arc, Mutex};
 
 pub fn main() -> iced::Result {
+
     let mut hotkey = tauri_hotkey::HotkeyManager::new();
-    let ctrl_c = tauri_hotkey::Hotkey {
+    let alt_c = tauri_hotkey::Hotkey {
         keys: vec![tauri_hotkey::Key::C],
-        modifiers: vec![tauri_hotkey::Modifier::CTRL],
+        modifiers: vec![tauri_hotkey::Modifier::ALT],
     };
-    let ctrl_v = tauri_hotkey::Hotkey {
+    let alt_v = tauri_hotkey::Hotkey {
         keys: vec![tauri_hotkey::Key::V],
-        modifiers: vec![tauri_hotkey::Modifier::CTRL],
+        modifiers: vec![tauri_hotkey::Modifier::ALT],
     };
     
-    hotkey.register(ctrl_c, || {
-        
-            println!("You pressed Ctrl+C",);
+    let mut text_pool = Arc::new(Mutex::new(Vec::<String>::new()));
+    let text_pool_clone = Arc::clone(&text_pool);
+    hotkey.register(alt_c, move || {
+        let mut clipboard_ctx = ClipboardContext::new().unwrap();
+            match clipboard_ctx.get_contents() {
+                Ok(content) => {
+                    text_pool.lock().unwrap().push(content);
+                }
+                Err(_) => ()
+            };
         })
         .unwrap();
-    hotkey.register(ctrl_v, || {
-            println!("You pressed Ctrl+V",);
+    hotkey.register(alt_v, move || {
+        for x in text_pool_clone.lock().unwrap().iter() {
+            println!("{}", x);
+        }
         })
         .unwrap();
     let mut en = Enigo::new();
@@ -75,20 +86,11 @@ impl Application for ClipboardShare {
         }
     }
 
-    fn subscription(&self) -> Subscription<Message> {
-        iced::time::every(std::time::Duration::from_millis(500)).map(|_| {
-            let mut clipboard_ctx = ClipboardContext::new().unwrap();
-            match clipboard_ctx.get_contents() {
-                Ok(content) => {
-                    _ = clipboard_ctx.clear();
-                    Message::Send(content)
-                }
-                Err(_) => {
-                    Message::None
-                }
-            }
-        })
-    }
+    // fn subscription(&self) -> Subscription<Message> {
+    //     iced::time::every(std::time::Duration::from_millis(500)).map(|_| {
+            
+    //     })
+    // }
 
     fn view(&self) -> Element<Message> {
         let message_log: Element<_> = if self.messages.is_empty() {

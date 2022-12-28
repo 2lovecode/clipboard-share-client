@@ -10,41 +10,48 @@ use once_cell::sync::OnceCell;
 use cli_clipboard::{ClipboardContext, ClipboardProvider};
 use iced_graphics;
 use tauri_hotkey;
-use enigo::*;
+use std::time;
+use std::thread;
 use std::sync::{Arc, Mutex};
+use std::sync::mpsc::channel;
 
 pub fn main() -> iced::Result {
 
     let mut hotkey = tauri_hotkey::HotkeyManager::new();
-    let alt_c = tauri_hotkey::Hotkey {
+   
+    let (sender, receiver) = channel();
+
+    let macos_ctrlc = tauri_hotkey::Hotkey {
         keys: vec![tauri_hotkey::Key::C],
-        modifiers: vec![tauri_hotkey::Modifier::ALT],
+        modifiers: vec![tauri_hotkey::Modifier::SUPER],
     };
-    let alt_v = tauri_hotkey::Hotkey {
-        keys: vec![tauri_hotkey::Key::V],
-        modifiers: vec![tauri_hotkey::Modifier::ALT],
-    };
+   
     
     let mut text_pool = Arc::new(Mutex::new(Vec::<String>::new()));
     let text_pool_clone = Arc::clone(&text_pool);
-    hotkey.register(alt_c, move || {
-        let mut clipboard_ctx = ClipboardContext::new().unwrap();
-            match clipboard_ctx.get_contents() {
-                Ok(content) => {
-                    text_pool.lock().unwrap().push(content);
-                }
-                Err(_) => ()
-            };
+    let mut current_text = String::from("Good Morning");
+
+    hotkey.register(macos_ctrlc, move || {
+        sender.send(1);
+       
         })
         .unwrap();
-    hotkey.register(alt_v, move || {
-        for x in text_pool_clone.lock().unwrap().iter() {
-            println!("{}", x);
-        }
-        })
-        .unwrap();
-    let mut en = Enigo::new();
-    en.key_sequence("hello world");
+    
+    thread::spawn(move || {
+        let aa = receiver.recv().unwrap();
+        println!("{}", aa);
+    });
+    // let mut clipboard_ctx = ClipboardContext::new().unwrap();
+    // match clipboard_ctx.get_contents() {
+    //     Ok(content) => {
+    //         if !content.is_empty() {
+    //             println!("clipboard {}", content);
+    //             text_pool.lock().unwrap().push(content);
+    //         }
+    //     }
+    //     Err(_) => ()
+    // };
+        
     ClipboardShare::run(settings())
 }
 

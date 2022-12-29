@@ -14,6 +14,7 @@ use std::time;
 use std::thread;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::channel;
+use enigo::*;
 
 pub fn main() -> iced::Result {
 
@@ -23,7 +24,7 @@ pub fn main() -> iced::Result {
 
     let macos_ctrlc = tauri_hotkey::Hotkey {
         keys: vec![tauri_hotkey::Key::C],
-        modifiers: vec![tauri_hotkey::Modifier::SUPER],
+        modifiers: vec![tauri_hotkey::Modifier::ALT],
     };
    
     
@@ -33,13 +34,30 @@ pub fn main() -> iced::Result {
 
     hotkey.register(macos_ctrlc, move || {
         sender.send(1);
-       
         })
         .unwrap();
     
     thread::spawn(move || {
-        let aa = receiver.recv().unwrap();
-        println!("{}", aa);
+        loop {
+            let aa = receiver.recv().unwrap();
+            // let mut en = Enigo::new();
+            // en.key_down(Key::Meta);
+            // en.key_click(Key::Layout('c'));
+            // en.key_up(Key::Meta);
+            thread::sleep(time::Duration::from_millis(50));
+            println!("{}", aa);
+            let mut clipboard_ctx = ClipboardContext::new().unwrap();
+            match clipboard_ctx.get_contents() {
+                Ok(content) => {
+                    if !content.is_empty() {
+                        println!("clipboard {}", content);
+                        text_pool.lock().unwrap().push(content);
+                    }
+                }
+                Err(_) => ()
+            };
+        }
+        
     });
     // let mut clipboard_ctx = ClipboardContext::new().unwrap();
     // match clipboard_ctx.get_contents() {

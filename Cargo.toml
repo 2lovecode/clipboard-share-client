@@ -18,4 +18,4 @@ cli-clipboard = { version="0.4.0"}
 chrono = {version="0.4.23"}
 iced_graphics = {version="0.5.0", features = [ "font-source" ]}
 tauri-hotkey = "0.1.2"
-enigo = "0.0.14"
+project-root = "0.2.2"

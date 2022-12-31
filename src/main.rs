@@ -5,70 +5,83 @@ use iced::widget::{
 use iced::{
     self, Application, Color, Command, Element, Length, Subscription, Theme,
 };
+use iced::event::{self, Event};
+use iced::keyboard;
+use iced::subscription;
+use iced_graphics;
+
 use once_cell::sync::Lazy;
 use once_cell::sync::OnceCell;
 use cli_clipboard::{ClipboardContext, ClipboardProvider};
-use iced_graphics;
+
 use tauri_hotkey;
-use std::time;
-use std::thread;
 use std::sync::{Arc, Mutex};
-use std::sync::mpsc::channel;
-use enigo::*;
+use project_root;
 
 pub fn main() -> iced::Result {
 
+    let mut project_root_path = String::from("");
+    let mut windows_selected_path = Arc::new(String::from(""));
+    let mut os_type = 0;
+    let mut current_copy_string = Arc::new(String::from(""));
+    
+    match project_root::get_project_root() {
+        Ok(p) => {
+            match p.to_str() {
+                Some(pt) => {
+                    project_root_path = pt.to_string();
+
+                    windows_selected_path = Arc::new(pt.to_string()+"\\deps\\fetch_selected_text.exe");
+                }
+                None => ()
+            }
+        },
+        Err(_) => ()
+    };
+
+
+    if cfg!(target_os = "linux") {
+        os_type = 1
+    }else if cfg!(target_os = "macos"){
+        os_type = 2
+    }else if cfg!(target_os = "windows"){
+        os_type = 3
+    }
+
     let mut hotkey = tauri_hotkey::HotkeyManager::new();
    
-    let (sender, receiver) = channel();
-
-    let macos_ctrlc = tauri_hotkey::Hotkey {
+    let alt_c = tauri_hotkey::Hotkey {
         keys: vec![tauri_hotkey::Key::C],
         modifiers: vec![tauri_hotkey::Modifier::ALT],
     };
    
     
-    let mut text_pool = Arc::new(Mutex::new(Vec::<String>::new()));
-    let text_pool_clone = Arc::clone(&text_pool);
-    let mut current_text = String::from("Good Morning");
-
-    hotkey.register(macos_ctrlc, move || {
-        sender.send(1);
+    hotkey.register(alt_c, move || {
+        
+        if os_type == 3 {
+            let mut command = std::process::Command::new(windows_selected_path.to_string());
+         
+            let output = command.output().unwrap();
+         
+            match output.status.code() {
+                Some(code) => {
+                    if code == 0 {
+                        match String::from_utf8(output.stdout) {
+                            Ok(v) => {
+                                current_copy_string = Arc::new(v);
+                                println!("copy {}", current_copy_string);
+                            }
+                            Err(_) => ()
+                        }
+                        
+                    }
+                }
+                None => ()
+            }
+        }
         })
         .unwrap();
     
-    thread::spawn(move || {
-        loop {
-            let aa = receiver.recv().unwrap();
-            // let mut en = Enigo::new();
-            // en.key_down(Key::Meta);
-            // en.key_click(Key::Layout('c'));
-            // en.key_up(Key::Meta);
-            thread::sleep(time::Duration::from_millis(50));
-            println!("{}", aa);
-            let mut clipboard_ctx = ClipboardContext::new().unwrap();
-            match clipboard_ctx.get_contents() {
-                Ok(content) => {
-                    if !content.is_empty() {
-                        println!("clipboard {}", content);
-                        text_pool.lock().unwrap().push(content);
-                    }
-                }
-                Err(_) => ()
-            };
-        }
-        
-    });
-    // let mut clipboard_ctx = ClipboardContext::new().unwrap();
-    // match clipboard_ctx.get_contents() {
-    //     Ok(content) => {
-    //         if !content.is_empty() {
-    //             println!("clipboard {}", content);
-    //             text_pool.lock().unwrap().push(content);
-    //         }
-    //     }
-    //     Err(_) => ()
-    // };
         
     ClipboardShare::run(settings())
 }
@@ -81,6 +94,7 @@ struct ClipboardShare {
 #[derive(Debug, Clone)]
 enum Message {
     Send(String),
+    Copy(u8),
     None
 }
 
@@ -107,15 +121,31 @@ impl Application for ClipboardShare {
                 self.messages.push(msg);
                 Command::none()
             }
+            Message::Copy(idx) => {
+                let mut clipboard_ctx = ClipboardContext::new().unwrap();
+
+                clipboard_ctx.set_contents(String::from("Good Morning!")).unwrap();
+                Command::none()
+            }
             Message::None => Command::none()
         }
     }
 
-    // fn subscription(&self) -> Subscription<Message> {
-    //     iced::time::every(std::time::Duration::from_millis(500)).map(|_| {
-            
-    //     })
-    // }
+    fn subscription(&self) -> Subscription<Message> {
+        subscription::events_with(|event, status| match (event, status) {
+            (
+                Event::Keyboard(keyboard::Event::KeyPressed {
+                    key_code: keyboard::KeyCode::Key1,
+                    modifiers: keyboard::Modifiers::ALT,
+                    ..
+                }),
+                event::Status::Ignored,
+            ) => {
+                Some(Message::Copy(1))
+            },
+            _ => None,
+        })
+    }
 
     fn view(&self) -> Element<Message> {
         let message_log: Element<_> = if self.messages.is_empty() {

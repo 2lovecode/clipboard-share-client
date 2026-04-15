@@ -1,6 +1,7 @@
 //! P2P 加密通道：Noise 协议 over TCP，双端加密，低延迟
 
 use crate::types::ClipItem;
+use rand::RngCore;
 use snow::{Builder, TransportState};
 use std::io;
 use std::sync::Arc;
@@ -8,21 +9,25 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, Mutex};
 
-const NOISE_PATTERN: &str = "Noise_NN_25519_ChaChaPoly_BLAKE2s";
+const NOISE_PATTERN: &str = "Noise_NNpsk0_25519_ChaChaPoly_BLAKE2s";
 const MAX_FRAME: usize = 4 * 1024 * 1024; // 4MB
+const PSK_LEN: usize = 32;
 
 /// P2P 事件：收到远端剪切板 / 连接状态
 #[derive(Debug, Clone)]
 pub enum P2PEvent {
     Received(ClipItem),
     Connected,
-    Disconnected,
+    Disconnected(String),
+    /// Host 生成 PSK，供 UI 显示
+    PskGenerated(String),
 }
 
-async fn do_handshake_initiator(stream: &mut TcpStream) -> io::Result<TransportState> {
+async fn do_handshake_initiator(stream: &mut TcpStream, psk: &[u8; PSK_LEN]) -> io::Result<TransportState> {
     let mut initiator = Builder::new(NOISE_PATTERN.parse().map_err(|e: snow::Error| {
         io::Error::new(io::ErrorKind::InvalidData, e)
     })?)
+    .psk(0, psk)
     .build_initiator()
     .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
@@ -41,10 +46,11 @@ async fn do_handshake_initiator(stream: &mut TcpStream) -> io::Result<TransportS
     initiator.into_transport_mode().map_err(|e| io::Error::new(io::ErrorKind::Other, e))
 }
 
-async fn do_handshake_responder(stream: &mut TcpStream) -> io::Result<TransportState> {
+async fn do_handshake_responder(stream: &mut TcpStream, psk: &[u8; PSK_LEN]) -> io::Result<TransportState> {
     let mut responder = Builder::new(NOISE_PATTERN.parse().map_err(|e: snow::Error| {
         io::Error::new(io::ErrorKind::InvalidData, e)
     })?)
+    .psk(0, psk)
     .build_responder()
     .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
@@ -80,24 +86,33 @@ pub fn run_host(
     let (send_tx, mut send_rx) = mpsc::unbounded_channel::<ClipItem>();
 
     tokio::spawn(async move {
+        // 生成随机 32 字节 PSK
+        let mut psk = [0u8; PSK_LEN];
+        rand::thread_rng().fill_bytes(&mut psk);
+        let psk_hex = hex::encode(&psk);
+
         let listener = match TcpListener::bind(("0.0.0.0", port)).await {
             Ok(l) => l,
-            Err(_) => {
-                let _ = event_tx.send(P2PEvent::Disconnected);
+            Err(_e) => {
+                let _ = event_tx.send(P2PEvent::Disconnected(format!("端口 {} 已被占用", port)));
                 return;
             }
         };
+
+        // 发送 PSK 给 UI 显示
+        let _ = event_tx.send(P2PEvent::PskGenerated(psk_hex.clone()));
+
         let (mut stream, _) = match listener.accept().await {
             Ok(s) => s,
-            Err(_) => {
-                let _ = event_tx.send(P2PEvent::Disconnected);
+            Err(_e) => {
+                let _ = event_tx.send(P2PEvent::Disconnected("接受连接失败".to_string()));
                 return;
             }
         };
-        let transport = match do_handshake_responder(&mut stream).await {
+        let transport = match do_handshake_responder(&mut stream, &psk).await {
             Ok(t) => t,
-            Err(_) => {
-                let _ = event_tx.send(P2PEvent::Disconnected);
+            Err(_e) => {
+                let _ = event_tx.send(P2PEvent::Disconnected("PSK 验证失败".to_string()));
                 return;
             }
         };
@@ -152,31 +167,47 @@ pub fn run_host(
                 break;
             }
         }
-        let _ = event_tx.send(P2PEvent::Disconnected);
+        let _ = event_tx.send(P2PEvent::Disconnected("连接中断".to_string()));
     });
 
     send_tx
 }
 
 /// 在后台运行 Join（连接对方地址），握手成功后同上
+/// psk 是 Host 显示的十六进制 PSK 字符串
 pub fn run_join(
     addr: String,
+    psk: String,
     event_tx: mpsc::UnboundedSender<P2PEvent>,
 ) -> mpsc::UnboundedSender<ClipItem> {
     let (send_tx, mut send_rx) = mpsc::unbounded_channel::<ClipItem>();
 
+    // 将十六进制 PSK 转换为字节
+    let psk_bytes: [u8; PSK_LEN] = match hex::decode(&psk) {
+        Ok(bytes) if bytes.len() == PSK_LEN => {
+            let mut arr = [0u8; PSK_LEN];
+            arr.copy_from_slice(&bytes);
+            arr
+        }
+        _ => {
+            // PSK 格式无效
+            let _ = event_tx.send(P2PEvent::Disconnected("PSK 格式无效".to_string()));
+            return send_tx;
+        }
+    };
+
     tokio::spawn(async move {
         let mut stream = match TcpStream::connect(&addr).await {
             Ok(s) => s,
-            Err(_) => {
-                let _ = event_tx.send(P2PEvent::Disconnected);
+            Err(_e) => {
+                let _ = event_tx.send(P2PEvent::Disconnected(format!("连接 {} 失败", addr)));
                 return;
             }
         };
-        let transport = match do_handshake_initiator(&mut stream).await {
+        let transport = match do_handshake_initiator(&mut stream, &psk_bytes).await {
             Ok(t) => t,
-            Err(_) => {
-                let _ = event_tx.send(P2PEvent::Disconnected);
+            Err(_e) => {
+                let _ = event_tx.send(P2PEvent::Disconnected("PSK 验证失败".to_string()));
                 return;
             }
         };
@@ -231,7 +262,7 @@ pub fn run_join(
                 break;
             }
         }
-        let _ = event_tx.send(P2PEvent::Disconnected);
+        let _ = event_tx.send(P2PEvent::Disconnected("连接中断".to_string()));
     });
 
     send_tx

@@ -1,3 +1,8 @@
 /target
 .vscode/
 .idea/
+.claude
+.cursor
+.opencode
+_bmad
+_bmad-output

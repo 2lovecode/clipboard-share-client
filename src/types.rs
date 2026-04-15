@@ -30,6 +30,9 @@ mod base64_bytes {
 }
 
 impl ClipItem {
+    /// 最大图片大小：4MB
+    pub const MAX_IMAGE_SIZE: usize = 4 * 1024 * 1024;
+
     pub fn text_preview(&self, max_len: usize) -> String {
         match self {
             ClipItem::Text(s) => {
@@ -37,10 +40,23 @@ impl ClipItem {
                 if s.len() <= max_len {
                     s.to_string()
                 } else {
-                    format!("{}...", &s[..max_len])
+                    // 找到 max_len 字节之前的字符边界
+                    let mut char_boundary = max_len;
+                    while !s.is_char_boundary(char_boundary) {
+                        char_boundary -= 1;
+                    }
+                    format!("{}...", &s[..char_boundary])
                 }
             }
             ClipItem::Image { width, height, .. } => format!("[图片 {}×{}]", width, height),
+        }
+    }
+
+    /// 检查是否为过大的图片
+    pub fn is_image_too_large(&self) -> bool {
+        match self {
+            ClipItem::Image { bytes, .. } => bytes.len() > Self::MAX_IMAGE_SIZE,
+            ClipItem::Text(_) => false,
         }
     }
 }

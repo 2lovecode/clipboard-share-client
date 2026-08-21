@@ -6,15 +6,17 @@
 ## 项目概览
 
 - **clipboard-share-client**：Rust 跨平台剪贴板共享客户端
-- **技术栈**：Rust (edition 2018)、iced GUI、tokio、async-tungstenite、warp、cli-clipboard、tauri-hotkey；Windows 侧有 `deps/fetch_selected_text.exe`
+- **技术栈**：Tauri 2 + Vue3（`ui/`）+ Vite；Rust 后端在 `src-tauri/`（tokio、arboard、rusqlite、snow Noise P2P、tauri-plugin-global-shortcut）
 - **规格目录**：`openspec/`（唯一权威规格与变更历史）
 - **配置**：`openspec/config.yaml`（产物语言：中文；结构标题与 SHALL/MUST 保持英文）
 
 ## 构建与验证
 
-- 检查：`cargo check`
-- 测试：`cargo test`
-- 运行：`cargo run`
+- 开发：`npm install` 后 `npm run tauri dev`
+- 检查：`cd src-tauri && cargo check`
+- 测试：`cd src-tauri && cargo test`
+- 前端构建：`npm run build`
+- 打包：`npm run tauri build`
 
 ## OpenSpec + Superpowers 路由
 

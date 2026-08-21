@@ -7,3 +7,12 @@
 .opencode
 _bmad
 _bmad-output
+
+# Node / Tauri frontend
+node_modules/
+dist/
+ui/dist/
+
+
+src-tauri/target/
+

@@ -1,0 +1,33 @@
+schema: spec-driven
+
+context: |
+  Language: zh
+  All artifacts must be written in zh.
+  Keep OpenSpec structural headings and SHALL/MUST keywords in English.
+
+  Project: clipboard-share-client — Rust 跨平台剪贴板共享客户端。
+  Stack: Rust (edition 2018), iced GUI, tokio, async-tungstenite (WebSocket),
+  warp, cli-clipboard, tauri-hotkey; Windows 侧有 deps/fetch_selected_text.exe。
+  Agents must respect OpenSpec + Superpowers routing in AGENTS.md
+  (project-level, tool-agnostic). .cursor/ and .agents/ are gitignored
+  local generateables — regenerate with openspec init / update.
+
+rules:
+  proposal:
+    - Always include an explicit Out-of-Scope / Non-goals section
+    - Keep the change focused; prefer multiple small changes over one giant change
+  tasks:
+    - Prefer small, verifiable tasks (ideally < 2 hours each)
+    - For behavior changes, pair each implementation task with a test task (RED then GREEN)
+
+operations:
+  apply:
+    guidance:
+      - Invoke Superpowers test-driven-development before writing production code
+      - Do not mark a task done until its test fails first (RED) then passes (GREEN)
+      - Run verification-before-completion before declaring the change applied
+      - Prefer cargo test / cargo check for verification when applicable
+  archive:
+    guidance:
+      - Confirm all tasks are [x] before archiving
+      - Summarize what merged into openspec/specs/ before finishing

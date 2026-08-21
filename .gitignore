@@ -3,3 +3,7 @@
 .idea/
 .cursor/
 .agents/
+.claude
+.opencode
+_bmad
+_bmad-output

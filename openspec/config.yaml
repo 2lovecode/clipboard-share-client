@@ -6,8 +6,8 @@ context: |
   Keep OpenSpec structural headings and SHALL/MUST keywords in English.
 
   Project: clipboard-share-client — Rust 跨平台剪贴板共享客户端。
-  Stack: Rust (edition 2018), iced GUI, tokio, async-tungstenite (WebSocket),
-  warp, cli-clipboard, tauri-hotkey; Windows 侧有 deps/fetch_selected_text.exe。
+  Stack: Tauri 2 + Vue3（`ui/`）+ Vite；Rust 后端在 `src-tauri/`
+    （tokio、arboard、rusqlite、snow Noise P2P、tauri-plugin-global-shortcut）。
   Agents must respect OpenSpec + Superpowers routing in AGENTS.md
   (project-level, tool-agnostic). .cursor/ and .agents/ are gitignored
   local generateables — regenerate with openspec init / update.

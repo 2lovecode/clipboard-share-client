@@ -1,10 +1,4 @@
-# clipboard-payload Specification
-
-## Purpose
-
-定义对等会话中可交换的剪贴板载荷类型（纯文本、图片）及其编码、传输与写回本机剪贴板的可观察行为。
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Plain text payload
 The system SHALL support capturing, transmitting, and writing plain text clipboard payloads via the clipboard-watch sync path and via history apply.
@@ -35,9 +29,8 @@ The system MUST NOT treat arbitrary file or folder drops, or rich HTML-only clip
 - **WHEN** the user attempts to use a file or folder as the clipboard payload for sync
 - **THEN** the system does not transmit it as a supported history item and informs the user it is unsupported, or otherwise does not claim a successful sync of that file payload
 
-### Requirement: Payload integrity
-For supported types, the receiving side MUST be able to reconstruct a payload suitable for local clipboard write without corruption of the primary content bytes (text code points or image bytes).
+## REMOVED Requirements
 
-#### Scenario: Large image within limit
-- **WHEN** an image within the implementation size limit is transmitted
-- **THEN** the receiver can write the same image bytes (or lossless equivalent representation) to the clipboard on click
+### Requirement: Rich text / HTML payload
+**Reason**: Runtime `ClipItem` supports Text and Image only; HTML capture/write is not implemented.
+**Migration**: Treat HTML-only clipboard content as unsupported unless a future change reintroduces HTML as an ADDED capability; plain text fallback remains allowed when the platform exposes plain text.
